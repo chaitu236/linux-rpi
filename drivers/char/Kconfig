@@ -432,4 +432,10 @@ config RASPBERRYPI_GPIOMEM
                 on the board. Calling mmap(/dev/gpiomem) will map the GPIO
                 register page to the user's pointer.
 
+config ISOKBD
+	tristate "IsoKbd driver"
+	default m
+	help
+	  IsoKbd driver for getting data from flow control capable RPI pico.
+
 endmenu

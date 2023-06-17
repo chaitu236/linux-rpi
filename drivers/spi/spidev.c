@@ -181,6 +181,35 @@ spidev_read(struct file *filp, char __user *buf, size_t count, loff_t *f_pos)
 	return status;
 }
 
+/* Hacks to let isokbd driver read spi data */
+static struct spidev_data *global_spidev;
+
+/* Mostly copy of spidev_read but without user buffer, filep etc */
+ssize_t global_spidev_read(u8 *buf, size_t count)
+{
+	struct spidev_data	*spidev;
+	ssize_t			status;
+
+	if (!global_spidev || !global_spidev->rx_buffer)
+		return -ENODEV;
+
+	/* chipselect only toggles at start or end of operation */
+	if (count > bufsiz)
+		return -EMSGSIZE;
+
+	spidev = global_spidev;
+
+	mutex_lock(&spidev->buf_lock);
+	status = spidev_sync_read(spidev, count);
+	if (status > 0)
+		memcpy(buf, spidev->rx_buffer, status);
+
+	mutex_unlock(&spidev->buf_lock);
+
+	return status;
+}
+EXPORT_SYMBOL(global_spidev_read);
+
 /* Write-only message with current device setup */
 static ssize_t
 spidev_write(struct file *filp, const char __user *buf,
@@ -824,6 +853,9 @@ static int spidev_probe(struct spi_device *spi)
 		spi_set_drvdata(spi, spidev);
 	else
 		kfree(spidev);
+
+	if (spi->master->bus_num == 0 && spi->chip_select == 0)
+		global_spidev = spidev;
 
 	return status;
 }
