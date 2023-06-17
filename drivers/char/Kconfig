@@ -461,4 +461,10 @@ config RANDOM_TRUST_BOOTLOADER
 	  believe its RNG facilities may be faulty. This may also be configured
 	  at boot time with "random.trust_bootloader=on/off".
 
+config ISOKBD
+	tristate "IsoKbd driver"
+	default m
+	help
+	  IsoKbd driver for getting data from flow control capable RPI pico.
+
 endmenu
