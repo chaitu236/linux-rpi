@@ -247,6 +247,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	ssd1351-spi.dtbo \
 	superaudioboard.dtbo \
 	sx150x.dtbo \
+	tas5825m.dtbo \
 	tc358743.dtbo \
 	tc358743-audio.dtbo \
 	tinylcd35.dtbo \
