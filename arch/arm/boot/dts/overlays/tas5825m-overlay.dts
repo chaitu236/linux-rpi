@@ -42,10 +42,10 @@
 			status = "okay";
 			compatible = "simple-audio-card";
 			simple-audio-card,name = "IsoKbd Amplifier";
-			simple-audio-card,format = "i2s";
-			simple-audio-card,bitclock-master = <&dailink0_master>;
-			simple-audio-card,frame-master = <&dailink0_master>;
 			simple-audio-card,dai-link@0 {
+				format = "i2s";
+				bitclock-master = <&dailink0_master>;
+				frame-master = <&dailink0_master>;
 				dailink0_master: cpu {
 					sound-dai = <&i2s>;
 				};
@@ -54,7 +54,10 @@
 				};
 			};
 			simple-audio-card,dai-link@1 {
-				cpu {
+				format = "i2s";
+				bitclock-master = <&dailink1_master>;
+				frame-master = <&dailink1_master>;
+				dailink1_master: cpu {
 					sound-dai = <&i2s>;
 				};
 				codec {
