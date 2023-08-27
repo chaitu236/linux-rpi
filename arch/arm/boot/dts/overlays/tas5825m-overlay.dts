@@ -26,6 +26,13 @@
 				pdn-gpios = <&gpio 16 0>;
 				status = "okay";
 			};
+			tlv320aic3254: tlv320aic3254@18 {
+				#sound-dai-cells = <0>;
+				compatible = "ti,tlv320aic32x4";
+				reg = <0x18>;
+				reset-gpios = <&gpio 7 0>;
+				status = "okay";
+			};
 		};
 	};
 
@@ -34,15 +41,25 @@
 		__overlay__ {
 			status = "okay";
 			compatible = "simple-audio-card";
-			simple-audio-card,name = "IsoKbd Speaker Amplifier";
+			simple-audio-card,name = "IsoKbd Amplifier";
 			simple-audio-card,format = "i2s";
 			simple-audio-card,bitclock-master = <&dailink0_master>;
 			simple-audio-card,frame-master = <&dailink0_master>;
-		        dailink0_master: simple-audio-card,cpu {
-				sound-dai = <&i2s>;
+			simple-audio-card,dai-link@0 {
+				dailink0_master: cpu {
+					sound-dai = <&i2s>;
+				};
+				codec {
+					sound-dai = <&tas5825>;
+				};
 			};
-			simple-audio-card,codec {
-				sound-dai = <&tas5825>;
+			simple-audio-card,dai-link@1 {
+				cpu {
+					sound-dai = <&i2s>;
+				};
+				codec {
+					sound-dai = <&tlv320aic3254>;
+				};
 			};
 		};
 	};
