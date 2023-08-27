@@ -1,0 +1,49 @@
+// Definitions for using tas5825m
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&i2s>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@1 {
+		target = <&i2c1>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			tlv320aic3254: tlv320aic3254@18 {
+				#sound-dai-cells = <0>;
+				compatible = "ti,tlv320aic32x4";
+				reg = <0x18>;
+				reset-gpios = <&gpio 7 0>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&sound>;
+		__overlay__ {
+			status = "okay";
+			compatible = "simple-audio-card";
+			simple-audio-card,name = "IsoKbd Headphone Amplifier";
+			simple-audio-card,format = "i2s";
+			simple-audio-card,bitclock-master = <&dailink0_master>;
+			simple-audio-card,frame-master = <&dailink0_master>;
+		        dailink0_master: simple-audio-card,cpu {
+				sound-dai = <&i2s>;
+			};
+			simple-audio-card,codec {
+				sound-dai = <&tlv320aic3254>;
+			};
+		};
+	};
+};
