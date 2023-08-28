@@ -1257,10 +1257,10 @@ static int aic32x4_setup_regulators(struct device *dev,
 {
 	int ret = 0;
 
-	aic32x4->supply_ldo = devm_regulator_get_optional(dev, "ldoin");
+	aic32x4->supply_ldo = devm_regulator_get(dev, "ldoin");
 	aic32x4->supply_iov = devm_regulator_get(dev, "iov");
-	aic32x4->supply_dv = devm_regulator_get_optional(dev, "dv");
-	aic32x4->supply_av = devm_regulator_get_optional(dev, "av");
+	aic32x4->supply_dv = devm_regulator_get(dev, "dv");
+	aic32x4->supply_av = devm_regulator_get(dev, "av");
 
 	/* Check if the regulator requirements are fulfilled */
 
