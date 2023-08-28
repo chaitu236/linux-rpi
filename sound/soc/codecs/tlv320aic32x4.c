@@ -1346,6 +1346,7 @@ int aic32x4_probe(struct device *dev, struct regmap *regmap)
 	if (IS_ERR(regmap))
 		return PTR_ERR(regmap);
 
+	pr_err("%s:%d\n", __func__, __LINE__);
 	aic32x4 = devm_kzalloc(dev, sizeof(struct aic32x4_priv),
 				   GFP_KERNEL);
 	if (aic32x4 == NULL)
@@ -1355,6 +1356,7 @@ int aic32x4_probe(struct device *dev, struct regmap *regmap)
 	aic32x4->type = (enum aic32x4_type)dev_get_drvdata(dev);
 
 	dev_set_drvdata(dev, aic32x4);
+	pr_err("%s:%d\n", __func__, __LINE__);
 
 	if (pdata) {
 		aic32x4->power_cfg = pdata->power_cfg;
@@ -1375,6 +1377,7 @@ int aic32x4_probe(struct device *dev, struct regmap *regmap)
 		aic32x4->rstn_gpio = -1;
 		aic32x4->mclk_name = "mclk";
 	}
+	pr_err("%s:%d\n", __func__, __LINE__);
 
 	if (gpio_is_valid(aic32x4->rstn_gpio)) {
 		ret = devm_gpio_request_one(dev, aic32x4->rstn_gpio,
@@ -1383,26 +1386,32 @@ int aic32x4_probe(struct device *dev, struct regmap *regmap)
 			return ret;
 	}
 
+	pr_err("%s:%d\n", __func__, __LINE__);
 	ret = aic32x4_setup_regulators(dev, aic32x4);
 	if (ret) {
+	pr_err("%s:%d\n", __func__, __LINE__);
 		dev_err(dev, "Failed to setup regulators\n");
 		return ret;
 	}
+	pr_err("%s:%d\n", __func__, __LINE__);
 
 	if (gpio_is_valid(aic32x4->rstn_gpio)) {
 		ndelay(10);
 		gpio_set_value_cansleep(aic32x4->rstn_gpio, 1);
 		mdelay(1);
 	}
+	pr_err("%s:%d\n", __func__, __LINE__);
 
 	ret = regmap_write(regmap, AIC32X4_RESET, 0x01);
 	if (ret)
 		goto err_disable_regulators;
 
+	pr_err("%s:%d\n", __func__, __LINE__);
 	ret = aic32x4_register_clocks(dev, aic32x4->mclk_name);
 	if (ret)
 		goto err_disable_regulators;
 
+	pr_err("%s:%d\n", __func__, __LINE__);
 	switch (aic32x4->type) {
 	case AIC32X4_TYPE_TAS2505:
 		ret = devm_snd_soc_register_component(dev,
@@ -1412,12 +1421,14 @@ int aic32x4_probe(struct device *dev, struct regmap *regmap)
 		ret = devm_snd_soc_register_component(dev,
 			&soc_component_dev_aic32x4, &aic32x4_dai, 1);
 	}
+	pr_err("%s:%d\n", __func__, __LINE__);
 
 	if (ret) {
 		dev_err(dev, "Failed to register component\n");
 		goto err_disable_regulators;
 	}
 
+	pr_err("%s:%d\n", __func__, __LINE__);
 	return 0;
 
 err_disable_regulators:
