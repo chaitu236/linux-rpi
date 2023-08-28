@@ -1007,6 +1007,7 @@ static int aic32x4_component_probe(struct snd_soc_component *component)
 		{ .id = "pll" },
 		{ .id = "bdiv" },
 		{ .id = "mdac" },
+		{ .id = "bclk" },
 	};
 
 	ret = devm_clk_bulk_get(component->dev, ARRAY_SIZE(clocks), clocks);
@@ -1018,6 +1019,7 @@ static int aic32x4_component_probe(struct snd_soc_component *component)
 
 	clk_set_parent(clocks[0].clk, clocks[1].clk);
 	clk_set_parent(clocks[2].clk, clocks[3].clk);
+	clk_set_parent(clocks[1].clk, clocks[4].clk);
 
 	/* Power platform configuration */
 	if (aic32x4->power_cfg & AIC32X4_PWR_MICBIAS_2075_LDOIN) {

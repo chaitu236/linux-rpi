@@ -52,15 +52,15 @@
 					sound-dai = <&tas5825>;
 				};
 			};
-			//headphone_link: simple-audio-card,dai-link@1 {
-			//	format = "i2s";
-			//	h_cpu_dai: cpu {
-			//		sound-dai = <&i2s>;
-			//	};
-			//	h_codec_dai: codec {
-			//		sound-dai = <&tlv320aic3254>;
-			//	};
-			//};
+			headphone_link: simple-audio-card,dai-link@1 {
+				format = "i2s";
+				h_cpu_dai: cpu {
+					sound-dai = <&i2s>;
+				};
+				h_codec_dai: codec {
+					sound-dai = <&tlv320aic3254>;
+				};
+			};
 		};
 	};
 };
