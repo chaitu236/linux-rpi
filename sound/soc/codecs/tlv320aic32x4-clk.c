@@ -440,6 +440,11 @@ static struct aic32x4_clkdesc aic32x4_clkdesc_array[] = {
 		.ops = &aic32x4_bdiv_ops,
 		.reg = AIC32X4_BCLKN,
 	},
+	{
+		.name = "bclk",
+		.num_parents = 0,
+		.reg = 0,
+	},
 };
 
 static struct clk *aic32x4_register_clk(struct device *dev,
