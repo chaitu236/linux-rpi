@@ -32,23 +32,11 @@
 				reg = <0x18>;
 				reset-gpios = <&gpio 7 0>;
 				status = "okay";
-				clock-names = "mclk";
-				clocks = <&mclksrc>;
 			};
 		};
 	};
 
 	fragment@2 {
-		target-path = "/clocks";
-		mclksrc: mclksrc {
-			#clock-cells = <0>;
-			compatible = "fixed-clock";
-			clock-frequency = <40000000>;
-			clock-output-names = "bclk";
-		};
-	};
-
-	fragment@3 {
 		target = <&sound>;
 		__overlay__ {
 			status = "okay";
@@ -64,15 +52,15 @@
 					sound-dai = <&tas5825>;
 				};
 			};
-			headphone_link: simple-audio-card,dai-link@1 {
-				format = "i2s";
-				h_cpu_dai: cpu {
-					sound-dai = <&i2s>;
-				};
-				h_codec_dai: codec {
-					sound-dai = <&tlv320aic3254>;
-				};
-			};
+			//headphone_link: simple-audio-card,dai-link@1 {
+			//	format = "i2s";
+			//	h_cpu_dai: cpu {
+			//		sound-dai = <&i2s>;
+			//	};
+			//	h_codec_dai: codec {
+			//		sound-dai = <&tlv320aic3254>;
+			//	};
+			//};
 		};
 	};
 };

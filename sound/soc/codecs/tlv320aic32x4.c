@@ -1221,9 +1221,12 @@ static int aic32x4_parse_dt(struct aic32x4_priv *aic32x4,
 		return -ENOMEM;
 
 	ret = of_property_match_string(np, "clock-names", "mclk");
-	if (ret < 0)
-		return -EINVAL;
-	aic32x4->mclk_name = of_clk_get_parent_name(np, ret);
+	if (ret < 0) {
+		printk(KERN_ERR "%s: Couldn't get clock-names err %d. Defaulting to \"mclk\"\n", __func__, ret);
+		aic32x4->mclk_name = "mclk";
+	} else {
+		aic32x4->mclk_name = of_clk_get_parent_name(np, ret);
+	}
 
 	aic32x4->swapdacs = false;
 	aic32x4->micpga_routing = 0;
