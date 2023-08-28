@@ -32,11 +32,23 @@
 				reg = <0x18>;
 				reset-gpios = <&gpio 7 0>;
 				status = "okay";
+				clock-names = "mclk";
+				clocks = <&mclksrc>;
 			};
 		};
 	};
 
 	fragment@2 {
+		target-path = "/clocks";
+		mclksrc: mclksrc {
+			#clock-cells = <0>;
+			compatible = "fixed-clock";
+			clock-frequency = <40000000>;
+			clock-output-names = "bclk";
+		};
+	};
+
+	fragment@3 {
 		target = <&sound>;
 		__overlay__ {
 			status = "okay";

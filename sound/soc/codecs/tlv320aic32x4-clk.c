@@ -243,6 +243,7 @@ static int clk_aic32x4_pll_set_rate(struct clk_hw *hw,
 static int clk_aic32x4_pll_set_parent(struct clk_hw *hw, u8 index)
 {
 	struct clk_aic32x4 *pll = to_clk_aic32x4(hw);
+	pr_err("%s:%d %d\n", __func__, __LINE__, index);
 
 	return regmap_update_bits(pll->regmap,
 				AIC32X4_CLKMUX,
