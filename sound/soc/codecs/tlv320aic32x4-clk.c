@@ -148,7 +148,9 @@ static unsigned long clk_aic32x4_pll_calc_rate(
 	rate = (u64) parent_rate * settings->r *
 				((settings->j * 10000) + settings->d);
 
-	return (unsigned long) DIV_ROUND_UP_ULL(rate, settings->p * 10000);
+	u64 ret = (unsigned long) DIV_ROUND_UP_ULL(rate, settings->p * 10000);
+	pr_err("%s:%d ret %lld\n", __func__, __LINE__, ret);
+	return ret;
 }
 
 static int clk_aic32x4_pll_calc_muldiv(struct clk_aic32x4_pll_muldiv *settings,
@@ -211,7 +213,9 @@ static long clk_aic32x4_pll_round_rate(struct clk_hw *hw,
 	struct clk_aic32x4_pll_muldiv settings;
 	int ret;
 
+	pr_err("%s:%d rate %lld, parent_rate %lld\n", __func__, __LINE__, rate, *parent_rate);
 	ret = clk_aic32x4_pll_calc_muldiv(&settings, rate, *parent_rate);
+	pr_err("%s:%d ret %d\n", __func__, __LINE__, ret);
 	if (ret < 0)
 		return 0;
 

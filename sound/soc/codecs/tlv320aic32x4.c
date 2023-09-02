@@ -730,6 +730,7 @@ static int aic32x4_setup_clocks(struct snd_soc_component *component,
 	if (ret)
 		return ret;
 
+	pr_err("%s:%d sample_rate %d\n", __func__, __LINE__, sample_rate);
 	if (sample_rate <= 48000) {
 		aosr = 128;
 		adc_resource_class = 6;
