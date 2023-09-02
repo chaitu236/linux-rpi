@@ -387,6 +387,21 @@ static const struct clk_ops aic32x4_bdiv_ops = {
 	.recalc_rate = clk_aic32x4_div_recalc_rate,
 };
 
+static int clk_aic32x4_bclk_prepare(struct clk_hw *hw)
+{
+	return 0;
+}
+
+static void clk_aic32x4_bclk_unprepare(struct clk_hw *hw)
+{
+}
+
+
+static const struct clk_ops aic32x4_bclk_ops = {
+	.prepare = clk_aic32x4_bclk_prepare,
+	.unprepare = clk_aic32x4_bclk_unprepare,
+};
+
 static struct aic32x4_clkdesc aic32x4_clkdesc_array[] = {
 	{
 		.name = "pll",
@@ -443,6 +458,7 @@ static struct aic32x4_clkdesc aic32x4_clkdesc_array[] = {
 	{
 		.name = "bclk",
 		.num_parents = 0,
+		.ops = &aic32x4_bclk_ops,
 		.reg = 0,
 	},
 };
