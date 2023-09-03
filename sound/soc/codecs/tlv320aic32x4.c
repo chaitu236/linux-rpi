@@ -1012,15 +1012,21 @@ static int aic32x4_component_probe(struct snd_soc_component *component)
 		{ .id = "bclk" },
 	};
 
+	pr_err("%s:%d\n", __func__, __LINE__);
+	struct clk* test_clk = devm_clk_get(component->dev, "pcm");
+	pr_err("%s:%d\n", __func__, __LINE__);
 	clocks[4].id = aic32x4->bclk_name;
 
+	pr_err("%s:%d\n", __func__, __LINE__);
 	ret = devm_clk_bulk_get(component->dev, ARRAY_SIZE(clocks), clocks);
 	if (ret)
 		return ret;
 
+	pr_err("%s:%d\n", __func__, __LINE__);
 	if (aic32x4->setup)
 		aic32x4_setup_gpios(component);
 
+	pr_err("%s:%d\n", __func__, __LINE__);
 	clk_set_parent(clocks[0].clk, clocks[1].clk);
 	clk_set_parent(clocks[2].clk, clocks[3].clk);
 	clk_set_parent(clocks[1].clk, clocks[4].clk);
