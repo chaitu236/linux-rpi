@@ -2,6 +2,8 @@
 /dts-v1/;
 /plugin/;
 
+#include <dt-bindings/clock/bcm2835.h>
+
 / {
 	compatible = "brcm,bcm2835";
 
@@ -32,6 +34,9 @@
 				reg = <0x18>;
 				reset-gpios = <&gpio 7 0>;
 				status = "okay";
+
+				clocks = <&clocks BCM2835_CLOCK_PCM>;
+				clock-names = "bclk";
 			};
 		};
 	};
@@ -43,15 +48,15 @@
 			compatible = "simple-audio-card";
 			simple-audio-card,name = "IsoKbd Amplifier";
 
-			speaker_link: simple-audio-card,dai-link@0 {
-				format = "i2s";
-				s_cpu_dai: cpu {
-					sound-dai = <&i2s>;
-				};
-				s_codec_dai: codec {
-					sound-dai = <&tas5825>;
-				};
-			};
+			//speaker_link: simple-audio-card,dai-link@0 {
+			//	format = "i2s";
+			//	s_cpu_dai: cpu {
+			//		sound-dai = <&i2s>;
+			//	};
+			//	s_codec_dai: codec {
+			//		sound-dai = <&tas5825>;
+			//	};
+			//};
 			headphone_link: simple-audio-card,dai-link@1 {
 				format = "i2s";
 				h_cpu_dai: cpu {

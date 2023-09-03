@@ -459,12 +459,12 @@ static struct aic32x4_clkdesc aic32x4_clkdesc_array[] = {
 		.ops = &aic32x4_bdiv_ops,
 		.reg = AIC32X4_BCLKN,
 	},
-	{
-		.name = "bclk",
-		.num_parents = 0,
-		.ops = &aic32x4_bclk_ops,
-		.reg = 0,
-	},
+	//{
+	//	.name = "bclk",
+	//	.num_parents = 0,
+	//	.ops = &aic32x4_bclk_ops,
+	//	.reg = 0,
+	//},
 };
 
 static struct clk *aic32x4_register_clk(struct device *dev,
@@ -493,7 +493,8 @@ static struct clk *aic32x4_register_clk(struct device *dev,
 	return devm_clk_register(dev, &priv->hw);
 }
 
-int aic32x4_register_clocks(struct device *dev, const char *mclk_name)
+int aic32x4_register_clocks(struct device *dev, const char *mclk_name,
+				const char *bclk_name)
 {
 	int i;
 
@@ -504,9 +505,9 @@ int aic32x4_register_clocks(struct device *dev, const char *mclk_name)
 	 * rather than code.
 	 */
 	aic32x4_clkdesc_array[0].parent_names =
-			(const char* []) { mclk_name, "bclk", "gpio", "din" };
+			(const char* []) { mclk_name, bclk_name, "gpio", "din" };
 	aic32x4_clkdesc_array[1].parent_names =
-			(const char *[]) { mclk_name, "bclk", "gpio", "pll" };
+			(const char *[]) { mclk_name, bclk_name, "gpio", "pll" };
 
 	for (i = 0; i < ARRAY_SIZE(aic32x4_clkdesc_array); ++i)
 		aic32x4_register_clk(dev, &aic32x4_clkdesc_array[i]);

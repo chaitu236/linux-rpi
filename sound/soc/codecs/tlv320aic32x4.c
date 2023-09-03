@@ -40,6 +40,7 @@ struct aic32x4_priv {
 	bool swapdacs;
 	int rstn_gpio;
 	const char *mclk_name;
+	const char *bclk_name;
 
 	struct regulator *supply_ldo;
 	struct regulator *supply_iov;
@@ -1011,6 +1012,8 @@ static int aic32x4_component_probe(struct snd_soc_component *component)
 		{ .id = "bclk" },
 	};
 
+	clocks[4].id = aic32x4->bclk_name;
+
 	ret = devm_clk_bulk_get(component->dev, ARRAY_SIZE(clocks), clocks);
 	if (ret)
 		return ret;
@@ -1226,9 +1229,19 @@ static int aic32x4_parse_dt(struct aic32x4_priv *aic32x4,
 	ret = of_property_match_string(np, "clock-names", "mclk");
 	if (ret < 0) {
 		printk(KERN_ERR "%s: Couldn't get clock-names err %d. Defaulting to \"mclk\"\n", __func__, ret);
+		// FIXME: Define in DT
 		aic32x4->mclk_name = "mclk";
 	} else {
 		aic32x4->mclk_name = of_clk_get_parent_name(np, ret);
+	}
+
+	ret = of_property_match_string(np, "clock-names", "bclk");
+	if (ret < 0) {
+		printk(KERN_ERR "%s: Couldn't get clock-names err %d. Defaulting to \"bclk\"\n", __func__, ret);
+		// FIXME: Define in DT
+		aic32x4->bclk_name = "bclk";
+	} else {
+		aic32x4->bclk_name = of_clk_get_parent_name(np, ret);
 	}
 
 	aic32x4->swapdacs = false;
@@ -1367,6 +1380,7 @@ int aic32x4_probe(struct device *dev, struct regmap *regmap)
 		aic32x4->micpga_routing = pdata->micpga_routing;
 		aic32x4->rstn_gpio = pdata->rstn_gpio;
 		aic32x4->mclk_name = "mclk";
+		aic32x4->bclk_name = "bclk";
 	} else if (np) {
 		ret = aic32x4_parse_dt(aic32x4, np);
 		if (ret) {
@@ -1379,6 +1393,7 @@ int aic32x4_probe(struct device *dev, struct regmap *regmap)
 		aic32x4->micpga_routing = 0;
 		aic32x4->rstn_gpio = -1;
 		aic32x4->mclk_name = "mclk";
+		aic32x4->bclk_name = "bclk";
 	}
 	pr_err("%s:%d\n", __func__, __LINE__);
 
@@ -1410,7 +1425,8 @@ int aic32x4_probe(struct device *dev, struct regmap *regmap)
 		goto err_disable_regulators;
 
 	pr_err("%s:%d\n", __func__, __LINE__);
-	ret = aic32x4_register_clocks(dev, aic32x4->mclk_name);
+	ret = aic32x4_register_clocks(dev, aic32x4->mclk_name,
+					aic32x4->bclk_name);
 	if (ret)
 		goto err_disable_regulators;
 
