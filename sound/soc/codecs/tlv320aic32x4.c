@@ -1013,8 +1013,8 @@ static int aic32x4_component_probe(struct snd_soc_component *component)
 	};
 
 	pr_err("%s:%d\n", __func__, __LINE__);
-	struct clk* test_clk = devm_clk_get(component->dev, "pcm");
-	pr_err("%s:%d\n", __func__, __LINE__);
+	struct clk* test_clk = devm_clk_get(NULL, aic32x4->bclk_name);
+	pr_err("%s:%d test_clk %p, is_err %d, err %d\n", __func__, __LINE__, test_clk, IS_ERR(test_clk), PTR_ERR(test_clk));
 	clocks[4].id = aic32x4->bclk_name;
 
 	pr_err("%s:%d\n", __func__, __LINE__);
