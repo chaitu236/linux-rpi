@@ -43,9 +43,11 @@ static struct clk_lookup *clk_find(const char *dev_id, const char *con_id)
 	if (con_id)
 		best_possible += 1;
 
+	pr_err("%s:%d   %s,%s\n", __func__, __LINE__, dev_id, con_id);
 	lockdep_assert_held(&clocks_mutex);
 
 	list_for_each_entry(p, &clocks, node) {
+		pr_err("   %s,%s\n", p->dev_id, p->con_id);
 		match = 0;
 		if (p->dev_id) {
 			if (!dev_id || strcmp(p->dev_id, dev_id))
@@ -66,6 +68,7 @@ static struct clk_lookup *clk_find(const char *dev_id, const char *con_id)
 				break;
 		}
 	}
+	pr_err("%s:%d %p\n", __func__, __LINE__, cl);
 	return cl;
 }
 
@@ -102,12 +105,17 @@ struct clk *clk_get(struct device *dev, const char *con_id)
 	const char *dev_id = dev ? dev_name(dev) : NULL;
 	struct clk_hw *hw;
 
+	pr_err("%s:%d\n", __func__, __LINE__);
 	if (dev && dev->of_node) {
+		pr_err("%s:%d\n", __func__, __LINE__);
 		hw = of_clk_get_hw(dev->of_node, 0, con_id);
-		if (!IS_ERR(hw) || PTR_ERR(hw) == -EPROBE_DEFER)
+		if (!IS_ERR(hw) || PTR_ERR(hw) == -EPROBE_DEFER) {
+			pr_err("%s:%d\n", __func__, __LINE__);
 			return clk_hw_create_clk(dev, hw, dev_id, con_id);
+		}
 	}
 
+	pr_err("%s:%d\n", __func__, __LINE__);
 	return __clk_get_sys(dev, dev_id, con_id);
 }
 EXPORT_SYMBOL(clk_get);
