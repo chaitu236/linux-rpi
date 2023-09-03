@@ -15,6 +15,18 @@
 	};
 
 	fragment@1 {
+		target-path = "/";
+		__overlay__ {
+			clk_dummy_i2s: clk-dummy {
+				compatible = "fixed-clock";
+				#clock-cells = <0>;
+				clock-output-names = "dummy_clk";
+				clock-frequency = <1536000>;
+			};
+		};
+	};
+
+	fragment@2 {
 		target = <&i2c1>;
 		__overlay__ {
 			#address-cells = <1>;
@@ -35,13 +47,14 @@
 				reset-gpios = <&gpio 7 0>;
 				status = "okay";
 
-				clocks = <&clocks BCM2835_CLOCK_PCM>;
+				//clocks = <&clocks BCM2835_CLOCK_PCM>;
+				clocks = <&clk_dummy_i2s>;
 				clock-names = "bclk";
 			};
 		};
 	};
 
-	fragment@2 {
+	fragment@3 {
 		target = <&sound>;
 		__overlay__ {
 			status = "okay";
