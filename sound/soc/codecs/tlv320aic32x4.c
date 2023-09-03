@@ -1009,13 +1009,13 @@ static int aic32x4_component_probe(struct snd_soc_component *component)
 		{ .id = "pll" },
 		{ .id = "bdiv" },
 		{ .id = "mdac" },
-		//{ .id = "bclk" },
+		{ .id = "bclk" },
 	};
 
 	pr_err("%s:%d\n", __func__, __LINE__);
-	struct clk* test_clk = devm_clk_get(component->dev, aic32x4->bclk_name);
+	struct clk* test_clk = devm_clk_get(component->dev, "pcm");
 	pr_err("%s:%d\n", __func__, __LINE__);
-	//clocks[4].id = aic32x4->bclk_name;
+	clocks[4].id = aic32x4->bclk_name;
 
 	pr_err("%s:%d\n", __func__, __LINE__);
 	ret = devm_clk_bulk_get(component->dev, ARRAY_SIZE(clocks), clocks);
@@ -1029,8 +1029,7 @@ static int aic32x4_component_probe(struct snd_soc_component *component)
 	pr_err("%s:%d\n", __func__, __LINE__);
 	clk_set_parent(clocks[0].clk, clocks[1].clk);
 	clk_set_parent(clocks[2].clk, clocks[3].clk);
-	//clk_set_parent(clocks[1].clk, clocks[4].clk);
-	clk_set_parent(clocks[1].clk, test_clk);
+	clk_set_parent(clocks[1].clk, clocks[4].clk);
 
 	/* Power platform configuration */
 	if (aic32x4->power_cfg & AIC32X4_PWR_MICBIAS_2075_LDOIN) {
