@@ -47,8 +47,9 @@
 				reset-gpios = <&gpio 7 0>;
 				status = "okay";
 
-				//clocks = <&clocks BCM2835_CLOCK_PCM>;
-				clocks = <&clk_dummy_i2s>;
+				clocks = <&clocks BCM2835_CLOCK_PCM>;
+				//clocks = <&clk_osc>;
+				//clocks = <&clk_dummy_i2s>;
 				clock-names = "bclk";
 			};
 		};

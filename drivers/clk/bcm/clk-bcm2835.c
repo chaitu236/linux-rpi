@@ -1559,6 +1559,11 @@ static struct clk_hw *bcm2835_register_clock(struct bcm2835_cprman *cprman,
 	ret = devm_clk_hw_register(cprman->dev, &clock->hw);
 	if (ret)
 		return ERR_PTR(ret);
+
+	ret = devm_clk_hw_register_clkdev(cprman->dev, &clock->hw, clock_data->name, NULL);
+	if (ret)
+		return ERR_PTR(ret);
+
 	return &clock->hw;
 }
 
