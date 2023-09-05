@@ -28,44 +28,34 @@ static struct clk *__devm_clk_get(struct device *dev, const char *id,
 	struct clk *clk;
 	int ret;
 
-	pr_err("%s:%d\n", __func__, __LINE__);
 	state = devres_alloc(devm_clk_release, sizeof(*state), GFP_KERNEL);
 	if (!state)
 		return ERR_PTR(-ENOMEM);
 
-	pr_err("%s:%d\n", __func__, __LINE__);
 	clk = get(dev, id);
 	if (IS_ERR(clk)) {
-		pr_err("%s:%d\n", __func__, __LINE__);
 		ret = PTR_ERR(clk);
 		goto err_clk_get;
 	}
-	pr_err("%s:%d\n", __func__, __LINE__);
 
 	if (init) {
-		pr_err("%s:%d\n", __func__, __LINE__);
 		ret = init(clk);
-		pr_err("%s:%d\n", __func__, __LINE__);
 		if (ret)
 			goto err_clk_init;
 	}
-	pr_err("%s:%d\n", __func__, __LINE__);
 
 	state->clk = clk;
 	state->exit = exit;
 
 	devres_add(dev, state);
-	pr_err("%s:%d\n", __func__, __LINE__);
 
 	return clk;
 
 err_clk_init:
 
-	pr_err("%s:%d\n", __func__, __LINE__);
 	clk_put(clk);
 err_clk_get:
 
-	pr_err("%s:%d\n", __func__, __LINE__);
 	devres_free(state);
 	return ERR_PTR(ret);
 }
