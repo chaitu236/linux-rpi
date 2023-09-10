@@ -199,6 +199,7 @@ static unsigned long clk_aic32x4_pll_recalc_rate(struct clk_hw *hw,
 	struct clk_aic32x4_pll_muldiv settings;
 	int ret;
 
+	pr_err("%s:%d parent_rate %llu\n", __func__, __LINE__, parent_rate);
 	ret =  clk_aic32x4_pll_get_muldiv(pll, &settings);
 	if (ret < 0)
 		return 0;
@@ -213,7 +214,7 @@ static long clk_aic32x4_pll_round_rate(struct clk_hw *hw,
 	struct clk_aic32x4_pll_muldiv settings;
 	int ret;
 
-	pr_err("%s:%d rate %lld, parent_rate %lld\n", __func__, __LINE__, rate, *parent_rate);
+	pr_err("%s:%d rate %llu, parent_rate %llu\n", __func__, __LINE__, rate, *parent_rate);
 	ret = clk_aic32x4_pll_calc_muldiv(&settings, rate, *parent_rate);
 	pr_err("%s:%d ret %d\n", __func__, __LINE__, ret);
 	if (ret < 0)
@@ -230,17 +231,21 @@ static int clk_aic32x4_pll_set_rate(struct clk_hw *hw,
 	struct clk_aic32x4_pll_muldiv settings;
 	int ret;
 
+	pr_err("%s:%d rate %llu, parent_rate %llu\n", __func__, __LINE__, rate, parent_rate);
 	ret = clk_aic32x4_pll_calc_muldiv(&settings, rate, parent_rate);
+	pr_err("%s:%d ret %d", __func__, __LINE__, ret);
 	if (ret < 0)
 		return -EINVAL;
 
 	ret = clk_aic32x4_pll_set_muldiv(pll, &settings);
+	pr_err("%s:%d ret %d", __func__, __LINE__, ret);
 	if (ret)
 		return ret;
 
 	/* 10ms is the delay to wait before the clocks are stable */
 	msleep(10);
 
+	pr_err("%s:%d ret %d", __func__, __LINE__, ret);
 	return 0;
 }
 
