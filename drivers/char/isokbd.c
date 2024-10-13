@@ -150,7 +150,8 @@ static int __init isokbd_init(void)
 	init_waitqueue_head(&wait_queue);
 
 	adcbuf = kmalloc(sizeof(keypress_spi_buffer_t) * ADCBUF_SIZE, GFP_KERNEL);
-	irq = gpio_to_irq(FLOW_CONTROL_GPIO);
+	/* FIXME: Don't hardcode global gpio no. Use some API to figure it out */
+	irq = gpio_to_irq(537);
 	pr_info("irq %d\n", irq);
 
 	ret = request_threaded_irq(irq, NULL, isokbd_isr, IRQF_TRIGGER_RISING | IRQF_ONESHOT, "isokbd pico", NULL);
