@@ -11,5 +11,6 @@ typedef struct __attribute__((packed)) {
 	uint16_t magic;
 	uint32_t time;
 	keypress_spi_data_t data[NO_OF_SIMULTANEOUS_KEYS];
+	uint8_t pedal_data[3];
 	uint32_t crc;
 } keypress_spi_buffer_t;
