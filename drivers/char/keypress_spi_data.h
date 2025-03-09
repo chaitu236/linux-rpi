@@ -1,16 +1,11 @@
 #pragma once
 
-#define NO_OF_SIMULTANEOUS_KEYS 20
-
-typedef struct __attribute__((packed)) {
-	uint16_t key;
-	uint8_t data;
-} keypress_spi_data_t;
+#define NO_OF_KEYS 280
 
 typedef struct __attribute__((packed)) {
 	uint16_t magic;
 	uint32_t time;
-	keypress_spi_data_t data[NO_OF_SIMULTANEOUS_KEYS];
+	uint8_t data[NO_OF_KEYS];
 	uint8_t pedal_data[3];
 	uint32_t crc;
 } keypress_spi_buffer_t;
