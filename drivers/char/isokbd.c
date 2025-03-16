@@ -121,7 +121,7 @@ static irqreturn_t isokbd_isr(int irq, void *data)
 	ret = global_spidev_read((u8*)buf, sizeof(keypress_spi_buffer_t));
 
 	if (ret != sizeof(keypress_spi_buffer_t)) {
-		printk("Partial read %d\n", ret);
+		pr_err("Partial read %d\n", ret);
 		goto out;
 	}
 
