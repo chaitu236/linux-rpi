@@ -16,9 +16,14 @@
 #include <linux/mutex.h>
 #include <linux/wait.h>
 
-#include "keypress_spi_data.h"
+/* FIXME: Don't hardcode global gpio no. Use some API to figure it out */
+#define FLOW_CONTROL_GPIO 537
 
-#define FLOW_CONTROL_GPIO 25
+static int keypress_spi_buffer_t_size;
+module_param(keypress_spi_buffer_t_size, int, 0400);
+MODULE_PARM_DESC(keypress_spi_buffer_t_size, "size of keypress_spi_buffer_t");
+
+typedef void keypress_spi_buffer_t;
 
 #define ADCBUF_SIZE 100
 static keypress_spi_buffer_t* adcbuf;
@@ -42,7 +47,7 @@ static ssize_t isokbd_read(struct file *file, char __user *usrbuf,
 	int ret = 0;
 	unsigned long missing;
 
-	if (count != sizeof(keypress_spi_buffer_t))
+	if (count != keypress_spi_buffer_t_size)
 		return -EINVAL;
 
 	mutex_lock(&buf_lock);
@@ -59,14 +64,14 @@ static ssize_t isokbd_read(struct file *file, char __user *usrbuf,
 	}
 	mutex_unlock(&buf_lock);
 
-	buf = &adcbuf[tail];
-	missing = copy_to_user(usrbuf, buf, sizeof(keypress_spi_buffer_t));
+	buf = adcbuf + tail*keypress_spi_buffer_t_size;
+	missing = copy_to_user(usrbuf, buf, keypress_spi_buffer_t_size);
 	if (missing) {
 		pr_err("Missing %ld\n", missing);
 		ret = -EFAULT;
 		goto err_copy_to_user;
 	}
-	ret = sizeof(keypress_spi_buffer_t);
+	ret = keypress_spi_buffer_t_size;
 
 	// Now that copy_to_user has succeeded, mark buf as empty
 	tail++;
@@ -116,11 +121,11 @@ static irqreturn_t isokbd_isr(int irq, void *data)
 	}
 	mutex_unlock(&buf_lock);
 
-	buf = &adcbuf[head];
+	buf = adcbuf + head*keypress_spi_buffer_t_size;
 
-	ret = global_spidev_read((u8*)buf, sizeof(keypress_spi_buffer_t));
+	ret = global_spidev_read((u8*)buf, keypress_spi_buffer_t_size);
 
-	if (ret != sizeof(keypress_spi_buffer_t)) {
+	if (ret != keypress_spi_buffer_t_size) {
 		pr_err("Partial read %d\n", ret);
 		goto out;
 	}
@@ -144,14 +149,17 @@ static int __init isokbd_init(void)
 	int irq;
 	int ret;
 
-	pr_info("%s: %d\n", __func__, __LINE__);
+	pr_info("%s: keypress_spi_buffer_t_size=%d\n", __func__, keypress_spi_buffer_t_size);
+	if (!keypress_spi_buffer_t_size) {
+		pr_err("isokbd: keypress_spi_buffer_t_size=0. Not initializing\n");
+		goto err_buffer_zero;
+	}
 
 	mutex_init(&buf_lock);
 	init_waitqueue_head(&wait_queue);
 
-	adcbuf = kmalloc(sizeof(keypress_spi_buffer_t) * ADCBUF_SIZE, GFP_KERNEL);
-	/* FIXME: Don't hardcode global gpio no. Use some API to figure it out */
-	irq = gpio_to_irq(537);
+	adcbuf = kmalloc(keypress_spi_buffer_t_size * ADCBUF_SIZE, GFP_KERNEL);
+	irq = gpio_to_irq(FLOW_CONTROL_GPIO);
 	pr_info("irq %d\n", irq);
 
 	ret = request_threaded_irq(irq, NULL, isokbd_isr, IRQF_TRIGGER_RISING | IRQF_ONESHOT, "isokbd pico", NULL);
@@ -165,6 +173,7 @@ static int __init isokbd_init(void)
 
 err_request_irq:
 	kfree(adcbuf);
+err_buffer_zero:
 	return -1;
 }
 
