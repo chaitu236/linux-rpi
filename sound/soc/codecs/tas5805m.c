@@ -89,6 +89,7 @@ struct tas5805m_priv {
 
 	bool				is_powered;
 	bool				is_muted;
+	bool				is_user_muted;
 
 	struct work_struct		work;
 	struct mutex			lock;
@@ -102,17 +103,66 @@ static void tas5805m_refresh(struct tas5805m_priv *tas5805m)
 	regmap_write(rm, REG_BOOK, 0x00);
 	regmap_write(rm, REG_PAGE, 0x00);
 
-	/* Set/clear digital soft-mute */
+	/* Set/clear digital soft-mute. The stream mute (driven by the ASoC
+	 * core around stream start/stop) and the user mute ('Master Playback
+	 * Switch') are tracked separately, so that a stream starting does not
+	 * clear a mute the user asked for.
+	 */
 	regmap_write(rm, REG_DEVICE_CTRL_2,
-		(tas5805m->is_muted ? DCTRL2_MUTE : 0) |
+		(tas5805m->is_muted || tas5805m->is_user_muted ?
+			DCTRL2_MUTE : 0) |
 		DCTRL2_MODE_PLAY);
 	regmap_write(rm, REG_FAULT, ANALOG_FAULT_CLEAR);
 }
 
 static const SNDRV_CTL_TLVD_DECLARE_DB_SCALE(tas5805m_vol_tlv, -10350, 50, 1);
 
+/* The mute bit lives in DEVICE_CTRL_2 alongside the device mode, and is only
+ * safe to write once the DSP has booted, so it cannot be a plain register
+ * control -- it is held in the driver and applied by tas5805m_refresh().
+ */
+static int tas5805m_get_user_mute(struct snd_kcontrol *kcontrol,
+				  struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct tas5805m_priv *tas5805m =
+		snd_soc_component_get_drvdata(component);
+
+	mutex_lock(&tas5805m->lock);
+	/* Inverted: the control is a playback switch, 1 = audible. */
+	ucontrol->value.integer.value[0] = !tas5805m->is_user_muted;
+	mutex_unlock(&tas5805m->lock);
+
+	return 0;
+}
+
+static int tas5805m_put_user_mute(struct snd_kcontrol *kcontrol,
+				  struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct tas5805m_priv *tas5805m =
+		snd_soc_component_get_drvdata(component);
+	bool mute = !ucontrol->value.integer.value[0];
+	int ret = 0;
+
+	mutex_lock(&tas5805m->lock);
+	if (tas5805m->is_user_muted != mute) {
+		tas5805m->is_user_muted = mute;
+		if (tas5805m->is_powered)
+			tas5805m_refresh(tas5805m);
+		ret = 1;
+	}
+	mutex_unlock(&tas5805m->lock);
+
+	return ret;
+}
+
 static const struct snd_kcontrol_new tas5805m_snd_controls[] = {
 	SOC_SINGLE_TLV("Master Playback Volume", REG_VOL_CTL, 0, 255, 1, tas5805m_vol_tlv),
+	SOC_SINGLE_BOOL_EXT("Master Playback Switch", 0,
+		tas5805m_get_user_mute, tas5805m_put_user_mute),
 };
 
 static void send_cfg(struct regmap *rm,
