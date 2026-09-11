@@ -93,6 +93,31 @@
 			compatible = "simple-audio-card";
 			simple-audio-card,name = "IsoKbd Audio";
 
+			/*
+			 * Pin the headphone outputs so DAPM treats them as
+			 * endpoints that are always connected.  Without this
+			 * nothing downstream of the DAC is ever powered: the
+			 * codec stays at bias level Off and the PLL, NDAC and
+			 * MDAC are left powered down even while the PCM says
+			 * it is running.
+			 *
+			 * The DAC-to-output-mixer switches are still runtime
+			 * mixer controls and default to off; those are set in
+			 * the saved ALSA state rather than here.
+			 */
+			simple-audio-card,widgets =
+				"Headphone", "Headphone Jack";
+			simple-audio-card,routing =
+				"Headphone Jack", "HPL",
+				"Headphone Jack", "HPR";
+
+			/*
+			 * Link order sets the PCM device numbers, and the
+			 * speakers are the default sink: they must come out as
+			 * hw:0,0 so that anything opening the default device
+			 * -- fluidsynth in particular -- reaches them.  The
+			 * headphones are hw:0,1.
+			 */
 			speaker_link: simple-audio-card,dai-link@0 {
 				format = "i2s";
 				bitclock-master = <&speaker_cpu_dai>;
