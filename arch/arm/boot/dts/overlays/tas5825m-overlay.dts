@@ -8,6 +8,11 @@
 // The aic3254 has no MCLK routed to it on this board; it derives its clocks
 // from BCLK via its PLL, which requires the Pi to stay bitclock/frame master
 // so that BCLK keeps running while the codec is streaming.
+//
+// The aic3254 is reset over GPIO 7, which bcm2711-rpi-cm4.dts hands to SPI0 as
+// chip select CE1.  SPI0 claims the pin first and the codec then fails to
+// probe with -EBUSY, so CE1 is released here in the same way the stock
+// spi0-1cs overlay does.  Only CE0 is used on this board.
 /dts-v1/;
 /plugin/;
 
@@ -21,7 +26,29 @@
 		};
 	};
 
+	/* Release GPIO 7 (SPI0 CE1) for use as the aic3254 reset line. */
 	fragment@1 {
+		target = <&spi0_cs_pins>;
+		__overlay__ {
+			brcm,pins = <8>;
+		};
+	};
+
+	fragment@2 {
+		target = <&spi0>;
+		__overlay__ {
+			cs-gpios = <&gpio 8 1>;
+		};
+	};
+
+	fragment@3 {
+		target = <&spidev1>;
+		__overlay__ {
+			status = "disabled";
+		};
+	};
+
+	fragment@4 {
 		target = <&i2c1>;
 		__overlay__ {
 			#address-cells = <1>;
@@ -59,7 +86,7 @@
 		};
 	};
 
-	fragment@2 {
+	fragment@5 {
 		target = <&sound>;
 		__overlay__ {
 			status = "okay";
