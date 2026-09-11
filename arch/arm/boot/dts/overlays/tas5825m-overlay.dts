@@ -1,9 +1,11 @@
 // Definitions for using tas5825m (speakers) and tlv320aic3254 (headphones)
 //
-// Both codecs hang off the one I2S bus.  simple-audio-card binds exactly one
-// codec per DAI link, so they are declared as two links on one card: the
-// speakers are hw:0,0 and the headphones hw:0,1.  Only one can be open at a
-// time because there is a single I2S block behind both.
+// Both codecs hang off the one I2S bus and are declared as a single
+// audio-graph-card2 multi-codec link, so they share one PCM device and both
+// chips are clocked and streaming continuously.  Selecting an output is then a
+// mixer write on an already-running codec rather than closing one PCM device
+// and opening another.  See fragment@5 for why simple-audio-card cannot
+// express this and what the arrangement costs.
 //
 // The aic3254 has no MCLK routed to it on this board; it derives its clocks
 // from BCLK via its PLL, which requires the Pi to stay bitclock/frame master
@@ -86,61 +88,187 @@
 		};
 	};
 
+	/*
+	 * One DAI link carrying both codecs, so they share a single PCM device.
+	 *
+	 * This is audio-graph-card2 rather than simple-audio-card for exactly
+	 * one reason: simple-card.c hardcodes li->num[].codecs = 1 (lines 587
+	 * and 617), so no device tree can give it two codecs on one link.
+	 * audio-graph-card2 counts them with graph_counter() instead and
+	 * supports a real multi-codec link.
+	 *
+	 * Why that matters is not the wiring -- both chips have always shared
+	 * the I2S lines -- but what ASoC does with it. As two links they are two
+	 * PCM devices, and only one can be open at a time behind the single I2S
+	 * block, so switching means closing one and opening the other. Worse,
+	 * the idle codec's link is not running at all: the aic3254 has no MCLK
+	 * on this board and runs its PLL from BCLK, so with no stream on its
+	 * link its clocks are down and unmuting it produces silence, not audio.
+	 *
+	 * On one link ASoC applies hw_params and trigger to every codec DAI, so
+	 * both chips are clocked and streaming continuously and selecting an
+	 * output is a mixer write on an already-running codec. No reopen, no
+	 * fluidsynth restart, nothing added to the real-time path.
+	 *
+	 * The cost, accepted deliberately: in the playback direction
+	 * soc_pcm_hw_update_format() intersects the formats of every codec on
+	 * the link (soc-pcm.c:553), so the tas5805m pins the link to S32_LE at
+	 * 48kHz even for headphone-only playback. The synth runs at 48kHz
+	 * anyway and plug converts. Capture is unaffected:
+	 * snd_soc_runtime_calc_hw() skips codecs that do not support the
+	 * stream's direction (soc-pcm.c:607), so the playback-only amplifier
+	 * drops out of a capture stream and only the aic3254 constrains it.
+	 *
+	 * No per-codec "prefix" here. audio-graph-card2 does parse one, but
+	 * only for DPCM back-ends -- the gtype == GRAPH_DPCM gate at
+	 * audio-graph-card2.c:487, which a multi link never reaches because
+	 * __graph_get_type() folds GRAPH_MULTI into GRAPH_NORMAL (line 294). A
+	 * prefix property would be silently ignored. It is not needed: the two
+	 * codecs' control names are already distinct, "Master Playback Volume"
+	 * and "Master Playback Switch" on the amplifier against "PCM Playback
+	 * Volume" and "HP DAC Playback Switch" on the codec.
+	 */
 	fragment@5 {
 		target = <&sound>;
 		__overlay__ {
 			status = "okay";
-			compatible = "simple-audio-card";
-			simple-audio-card,name = "IsoKbd Audio";
+			compatible = "audio-graph-card2";
 
 			/*
-			 * Pin the headphone outputs so DAPM treats them as
-			 * endpoints that are always connected.  Without this
-			 * nothing downstream of the DAC is ever powered: the
-			 * codec stays at bias level Off and the PLL, NDAC and
-			 * MDAC are left powered down even while the PCM says
-			 * it is running.
+			 * One word, deliberately. ALSA derives the card id --
+			 * what aplay -D, asound.conf and amixer -c match on --
+			 * from this with retrieve_id_from_card_name(), which
+			 * takes the last whitespace-separated word
+			 * (sound/core/init.c:676). "IsoKbd Audio" therefore
+			 * gave the id "Audio", which is both uninformative and
+			 * liable to collide; a colliding id silently gets a
+			 * "_1" suffix (init.c:752) and every reference to it by
+			 * name then misses.
+			 */
+			label = "IsoKbd";
+
+			links = <&isokbd_i2s_port>;
+
+			/*
+			 * Pin both outputs as DAPM endpoints that are always
+			 * connected. Without this nothing downstream of either
+			 * DAC is ever powered: the codec stays at bias level
+			 * Off with its PLL, NDAC and MDAC down even while the
+			 * PCM says it is running.
 			 *
-			 * The DAC-to-output-mixer switches are still runtime
-			 * mixer controls and default to off; those are set in
-			 * the saved ALSA state rather than here.
+			 * Both are pinned, not just the selected one, because
+			 * the whole point of the shared link is that both chips
+			 * stay live and selection is a mixer write. The
+			 * DAC-to-output-mixer switches are still runtime mixer
+			 * controls and default to off; those are set from the
+			 * saved ALSA state rather than here.
 			 */
-			simple-audio-card,widgets =
-				"Headphone", "Headphone Jack";
-			simple-audio-card,routing =
-				"Headphone Jack", "HPL",
-				"Headphone Jack", "HPR";
+			widgets = "Headphone", "Headphone Jack",
+				  "Speaker",   "Speakers";
+			routing = "Headphone Jack", "HPL",
+				  "Headphone Jack", "HPR",
+				  "Speakers",       "OUT";
 
 			/*
-			 * Link order sets the PCM device numbers, and the
-			 * speakers are the default sink: they must come out as
-			 * hw:0,0 so that anything opening the default device
-			 * -- fluidsynth in particular -- reaches them.  The
-			 * headphones are hw:0,1.
+			 * Only the codec side is multi. The CPU side is the
+			 * I2S node's own port, named directly by "links".
+			 *
+			 * Wrapping the single CPU in its own multi {} ports@0 was
+			 * tried and does not work. Measured on hardware: with
+			 * a multi CPU side the card never binds and the error
+			 * names a null link, "Neither Component name/of_node
+			 * are set for (null)" -- the same with one codec as
+			 * with two, so it is the CPU side at fault rather than
+			 * the codec count. Pointing links at a plain CPU port
+			 * instead gets the CPU resolved and the link named.
+			 *
+			 * A likely mechanism, not confirmed:
+			 * of_graph_get_next_endpoint() finds a node's ports
+			 * with of_get_child_by_name(parent, "ports"), which
+			 * takes the first child of that name, and
+			 * of_node_name_eq() ignores unit addresses -- so
+			 * ports@0 and ports@1 are both "ports". Treat that as
+			 * a lead rather than an established cause.
+			 *
+			 * Either way the rule holds: use multi {} only for a
+			 * side that really has several members. One I2S block
+			 * is not one of them.
 			 */
-			speaker_link: simple-audio-card,dai-link@0 {
-				format = "i2s";
-				bitclock-master = <&speaker_cpu_dai>;
-				frame-master = <&speaker_cpu_dai>;
+			multi {
+				/*
+				 * port@0 is the link itself -- the far end of
+				 * the CPU's endpoint -- and the ports after it
+				 * are the codecs. graph_counter() returns the
+				 * endpoint count minus that first one, so this
+				 * is two codecs.
+				 */
+				ports {
+					#address-cells = <1>;
+					#size-cells = <0>;
 
-				speaker_cpu_dai: cpu {
-					sound-dai = <&i2s>;
-				};
-				codec {
-					sound-dai = <&tas5825>;
+					port@0 {
+						reg = <0>;
+						isokbd_multi_codec_ep: endpoint {
+							remote-endpoint = <&isokbd_i2s_ep>;
+						};
+					};
+					/* The amplifier. */
+					port@1 {
+						reg = <1>;
+						isokbd_multi_tas_ep: endpoint {
+							remote-endpoint = <&isokbd_tas_ep>;
+						};
+					};
+					/* The headphone codec. */
+					port@2 {
+						reg = <2>;
+						isokbd_multi_aic_ep: endpoint {
+							remote-endpoint = <&isokbd_aic_ep>;
+						};
+					};
 				};
 			};
+		};
+	};
 
-			headphone_link: simple-audio-card,dai-link@1 {
-				format = "i2s";
-				bitclock-master = <&headphone_cpu_dai>;
-				frame-master = <&headphone_cpu_dai>;
+	/*
+	 * The Pi stays bitclock and frame master. That is not a preference: the
+	 * aic3254 has no MCLK routed on this board and derives everything from
+	 * BCLK through its PLL, so BCLK has to keep running whenever the codec
+	 * is streaming.
+	 */
+	fragment@6 {
+		target = <&i2s>;
+		__overlay__ {
+			isokbd_i2s_port: port {
+				bitclock-master;
+				frame-master;
+				dai-format = "i2s";
 
-				headphone_cpu_dai: cpu {
-					sound-dai = <&i2s>;
+				isokbd_i2s_ep: endpoint {
+					remote-endpoint = <&isokbd_multi_codec_ep>;
 				};
-				codec {
-					sound-dai = <&tlv320aic3254>;
+			};
+		};
+	};
+
+	fragment@7 {
+		target = <&tas5825>;
+		__overlay__ {
+			port {
+				isokbd_tas_ep: endpoint {
+					remote-endpoint = <&isokbd_multi_tas_ep>;
+				};
+			};
+		};
+	};
+
+	fragment@8 {
+		target = <&tlv320aic3254>;
+		__overlay__ {
+			port {
+				isokbd_aic_ep: endpoint {
+					remote-endpoint = <&isokbd_multi_aic_ep>;
 				};
 			};
 		};
