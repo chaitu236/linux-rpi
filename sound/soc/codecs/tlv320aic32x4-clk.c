@@ -485,7 +485,18 @@ int aic32x4_register_clocks(struct device *dev, const char *mclk_name)
 	 * the driver with regard to the DT.  These should eventually be set
 	 * by DT nodes so that the connections can be set up in configuration
 	 * rather than code.
+	 *
+	 * Boards that do not wire an MCLK to the codec pass a NULL mclk_name
+	 * and drive the PLL from the bit clock instead.  The mux index of each
+	 * parent is written verbatim to AIC32X4_CLKMUX, so the slots must keep
+	 * their hardware order; only the name in the MCLK slot is substituted.
+	 * Naming "bclk" in both slot 0 and slot 1 keeps the MCLK slot from
+	 * referring to a clock the board does not provide, while leaving the
+	 * BCLK index the codec actually needs (1) resolvable.
 	 */
+	if (!mclk_name)
+		mclk_name = "bclk";
+
 	aic32x4_clkdesc_array[0].parent_names =
 			(const char* []) { mclk_name, "bclk", "gpio", "din" };
 	aic32x4_clkdesc_array[1].parent_names =

@@ -598,8 +598,17 @@ static int aic32x4_set_dai_sysclk(struct snd_soc_dai *codec_dai,
 				  int clk_id, unsigned int freq, int dir)
 {
 	struct snd_soc_component *component = codec_dai->component;
+	struct aic32x4_priv *aic32x4 = snd_soc_component_get_drvdata(component);
 	struct clk *mclk;
 	struct clk *pll;
+
+	/*
+	 * Without an MCLK the PLL runs from BCLK, whose rate is owned by the
+	 * CPU side.  There is nothing for the codec to set here, and trying
+	 * would reparent or re-rate somebody else's clock.
+	 */
+	if (!aic32x4->mclk_name)
+		return 0;
 
 	pll = devm_clk_get(component->dev, "pll");
 	if (IS_ERR(pll))
@@ -1016,6 +1025,22 @@ static int aic32x4_component_probe(struct snd_soc_component *component)
 	if (aic32x4->setup)
 		aic32x4_setup_gpios(component);
 
+	/*
+	 * With no MCLK the PLL has to be told to run from BCLK.  The mux slot
+	 * is written straight to AIC32X4_CLKMUX, so select it by register
+	 * value rather than by parent clock: slots 0 and 1 are both named
+	 * "bclk" in that configuration and are indistinguishable to
+	 * clk_set_parent().
+	 */
+	if (!aic32x4->mclk_name) {
+		ret = snd_soc_component_update_bits(component, AIC32X4_CLKMUX,
+					AIC32X4_PLL_CLKIN_MASK,
+					AIC32X4_PLL_CLKIN_BCKL <<
+						AIC32X4_PLL_CLKIN_SHIFT);
+		if (ret < 0)
+			return ret;
+	}
+
 	clk_set_parent(clocks[0].clk, clocks[1].clk);
 	clk_set_parent(clocks[2].clk, clocks[3].clk);
 
@@ -1220,10 +1245,17 @@ static int aic32x4_parse_dt(struct aic32x4_priv *aic32x4,
 	if (!aic32x4_setup)
 		return -ENOMEM;
 
+	/*
+	 * An MCLK is optional.  Boards that do not route one to the codec
+	 * leave out clocks/clock-names entirely and drive the PLL from the
+	 * bit clock, which requires the CPU side to be clock provider so that
+	 * BCLK keeps running for as long as the PLL needs a reference.
+	 */
 	ret = of_property_match_string(np, "clock-names", "mclk");
 	if (ret < 0)
-		return -EINVAL;
-	aic32x4->mclk_name = of_clk_get_parent_name(np, ret);
+		aic32x4->mclk_name = NULL;
+	else
+		aic32x4->mclk_name = of_clk_get_parent_name(np, ret);
 
 	aic32x4->swapdacs = false;
 	aic32x4->micpga_routing = 0;
