@@ -1,4 +1,13 @@
-// Definitions for using tas5825m
+// Definitions for using tas5825m (speakers) and tlv320aic3254 (headphones)
+//
+// Both codecs hang off the one I2S bus.  simple-audio-card binds exactly one
+// codec per DAI link, so they are declared as two links on one card: the
+// speakers are hw:0,0 and the headphones hw:0,1.  Only one can be open at a
+// time because there is a single I2S block behind both.
+//
+// The aic3254 has no MCLK routed to it on this board; it derives its clocks
+// from BCLK via its PLL, which requires the Pi to stay bitclock/frame master
+// so that BCLK keeps running while the codec is streaming.
 /dts-v1/;
 /plugin/;
 
@@ -26,6 +35,27 @@
 				pdn-gpios = <&gpio 16 0>;
 				status = "okay";
 			};
+
+			tlv320aic3254: tlv320aic3254@18 {
+				#sound-dai-cells = <0>;
+				compatible = "ti,tlv320aic32x4";
+				reg = <0x18>;
+				reset-gpios = <&gpio 7 0>;
+
+				/*
+				 * No clocks/clock-names: there is no MCLK on
+				 * this board, so the driver runs the PLL from
+				 * BCLK.
+				 *
+				 * LDOIN is fed from 3V3 and the internal LDOs
+				 * generate AVDD/DVDD, so only iov and ldoin
+				 * are supplied here.
+				 */
+				iov-supply = <&vdd_3v3_reg>;
+				ldoin-supply = <&vdd_3v3_reg>;
+
+				status = "okay";
+			};
 		};
 	};
 
@@ -34,15 +64,32 @@
 		__overlay__ {
 			status = "okay";
 			compatible = "simple-audio-card";
-			simple-audio-card,name = "IsoKbd Speaker Amplifier";
-			simple-audio-card,format = "i2s";
-			simple-audio-card,bitclock-master = <&dailink0_master>;
-			simple-audio-card,frame-master = <&dailink0_master>;
-		        dailink0_master: simple-audio-card,cpu {
-				sound-dai = <&i2s>;
+			simple-audio-card,name = "IsoKbd Audio";
+
+			speaker_link: simple-audio-card,dai-link@0 {
+				format = "i2s";
+				bitclock-master = <&speaker_cpu_dai>;
+				frame-master = <&speaker_cpu_dai>;
+
+				speaker_cpu_dai: cpu {
+					sound-dai = <&i2s>;
+				};
+				codec {
+					sound-dai = <&tas5825>;
+				};
 			};
-			simple-audio-card,codec {
-				sound-dai = <&tas5825>;
+
+			headphone_link: simple-audio-card,dai-link@1 {
+				format = "i2s";
+				bitclock-master = <&headphone_cpu_dai>;
+				frame-master = <&headphone_cpu_dai>;
+
+				headphone_cpu_dai: cpu {
+					sound-dai = <&i2s>;
+				};
+				codec {
+					sound-dai = <&tlv320aic3254>;
+				};
 			};
 		};
 	};
