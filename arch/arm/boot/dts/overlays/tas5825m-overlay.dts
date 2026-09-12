@@ -62,6 +62,26 @@
 				compatible = "ti,tas5805m";
 				reg = <0x4c>;
 				pdn-gpios = <&gpio 16 0>;
+
+				/*
+				 * Loads /lib/firmware/tas5805m_dsp_isokbd.bin --
+				 * tas5805m, not tas5825m: the part is a
+				 * TAS5825M but the driver builds the name from
+				 * its own. The driver sends that register block
+				 * on every DSP boot, which is what makes it the
+				 * place for anything that must survive one.
+				 *
+				 * Not optional on this board. Booting the DSP
+				 * resets the register block, and without a
+				 * config file the driver falls back to a
+				 * built-in minimal one whose analog gain is
+				 * sized for PVDD = 24V. PVDD here is 20V, so
+				 * that fallback lets the amplifier try to swing
+				 * nearly 5V beyond its own supply, and the
+				 * volume comes up at 0 dB.
+				 */
+				ti,dsp-config-name = "isokbd";
+
 				status = "okay";
 			};
 
