@@ -170,29 +170,43 @@
 				  "Speakers",       "OUT";
 
 			/*
-			 * Only the codec side is multi. The CPU side is the
-			 * I2S node's own port, named directly by "links".
+			 * Two things here are load-bearing and neither is
+			 * obvious. Both were found on hardware, by tracing the
+			 * parse; both fail the same silent way, with the card
+			 * simply absent and "Neither Component name/of_node
+			 * are set" in dmesg.
 			 *
-			 * Wrapping the single CPU in its own multi {} ports@0 was
-			 * tried and does not work. Measured on hardware: with
-			 * a multi CPU side the card never binds and the error
-			 * names a null link, "Neither Component name/of_node
-			 * are set for (null)" -- the same with one codec as
-			 * with two, so it is the CPU side at fault rather than
-			 * the codec count. Pointing links at a plain CPU port
-			 * instead gets the CPU resolved and the link named.
+			 * 1. Only the codec side is multi. The CPU side is the
+			 *    I2S node's own port, named directly by "links".
+			 *    Wrapping the single CPU in its own multi {}
+			 *    ports@0 does not bind -- identically with one
+			 *    codec as with two, so it is the CPU side at fault
+			 *    rather than the codec count.
 			 *
-			 * A likely mechanism, not confirmed:
-			 * of_graph_get_next_endpoint() finds a node's ports
-			 * with of_get_child_by_name(parent, "ports"), which
-			 * takes the first child of that name, and
-			 * of_node_name_eq() ignores unit addresses -- so
-			 * ports@0 and ports@1 are both "ports". Treat that as
-			 * a lead rather than an established cause.
+			 * 2. The ports are declared in REVERSE order, port@2
+			 *    first and port@0 last. __of_attach_node() inserts
+			 *    each overlay node at the HEAD of its parent's
+			 *    child list (drivers/of/dynamic.c: "np->sibling =
+			 *    np->parent->child"), so the sibling chain comes
+			 *    out in reverse declaration order. Declared 0,1,2
+			 *    the chain starts at port@0 and immediately ends:
+			 *    graph_get_next_multi_ep() asks for port@0's next
+			 *    sibling, gets NULL, and both codec slots are left
+			 *    empty.
 			 *
-			 * Either way the rule holds: use multi {} only for a
-			 * side that really has several members. One I2S block
-			 * is not one of them.
+			 * The second one is worth dwelling on, because the
+			 * device tree looks perfect either way -- /proc shows
+			 * all three ports with resolving remote-endpoints --
+			 * and because graph_counter() disagrees with the walk.
+			 * Counting uses of_graph_get_endpoint_count(), which
+			 * searches by name and finds all three; parsing walks
+			 * prev->sibling from port@0 and finds none. That gap
+			 * is what "codecs=2" alongside "idx 0: no more
+			 * endpoints" means, and it is why the count and the
+			 * parse can disagree about the same node.
+			 *
+			 * This affects overlays only. A codec pair spelled the
+			 * same way inside a base DTS needs no reversal.
 			 */
 			multi {
 				/*
@@ -206,10 +220,21 @@
 					#address-cells = <1>;
 					#size-cells = <0>;
 
-					port@0 {
-						reg = <0>;
-						isokbd_multi_codec_ep: endpoint {
-							remote-endpoint = <&isokbd_i2s_ep>;
+					/*
+					 * Declared last-to-first on purpose. See
+					 * the comment above: the kernel
+					 * prepends each overlay node to its
+					 * parent's child list, so the sibling
+					 * chain ends up in reverse declaration
+					 * order, and this is what puts port@0
+					 * at the head with port@1 and port@2
+					 * after it.
+					 */
+					/* The headphone codec. */
+					port@2 {
+						reg = <2>;
+						isokbd_multi_aic_ep: endpoint {
+							remote-endpoint = <&isokbd_aic_ep>;
 						};
 					};
 					/* The amplifier. */
@@ -219,11 +244,10 @@
 							remote-endpoint = <&isokbd_tas_ep>;
 						};
 					};
-					/* The headphone codec. */
-					port@2 {
-						reg = <2>;
-						isokbd_multi_aic_ep: endpoint {
-							remote-endpoint = <&isokbd_aic_ep>;
+					port@0 {
+						reg = <0>;
+						isokbd_multi_codec_ep: endpoint {
+							remote-endpoint = <&isokbd_i2s_ep>;
 						};
 					};
 				};
