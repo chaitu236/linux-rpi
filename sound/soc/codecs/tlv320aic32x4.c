@@ -20,6 +20,7 @@
 #include <linux/slab.h>
 #include <linux/clk.h>
 #include <linux/of_clk.h>
+#include <linux/property.h>
 #include <linux/regulator/consumer.h>
 
 #include <sound/tlv320aic32x4.h>
@@ -51,6 +52,8 @@ struct aic32x4_priv {
 	enum aic32x4_type type;
 
 	unsigned int fmt;
+
+	int irq;
 };
 
 static int aic32x4_reset_adc(struct snd_soc_dapm_widget *w,
@@ -1383,6 +1386,17 @@ int aic32x4_probe(struct device *dev, struct regmap *regmap)
 	aic32x4->regmap = regmap;
 	aic32x4->dev = dev;
 	aic32x4->type = (uintptr_t)dev_get_drvdata(dev);
+
+	/*
+	 * Looked up here rather than taken from the bus shim, so that both the
+	 * I2C and SPI sides get it without the shared probe growing a
+	 * bus-specific argument.  Absent is the normal case: only a board that
+	 * wires one of the multifunction pins to an interrupt has one.
+	 */
+	ret = fwnode_irq_get(dev_fwnode(dev), 0);
+	if (ret == -EPROBE_DEFER)
+		return ret;
+	aic32x4->irq = ret > 0 ? ret : 0;
 
 	dev_set_drvdata(dev, aic32x4);
 
