@@ -18,6 +18,8 @@
 /dts-v1/;
 /plugin/;
 
+#include <dt-bindings/interrupt-controller/irq.h>
+
 / {
 	compatible = "brcm,bcm2835";
 
@@ -102,6 +104,43 @@
 				 */
 				iov-supply = <&vdd_3v3_reg>;
 				ldoin-supply = <&vdd_3v3_reg>;
+
+				/*
+				 * Headset detection.  The codec has no
+				 * dedicated presence contact: it senses a DC
+				 * level on SCLK/MFP3, which MICBIAS drives
+				 * through R21 on the mic node.  A bodge wire
+				 * ties that pin to the mic node, without which
+				 * it floats and detects nothing -- so this
+				 * property describes the wire, not the part,
+				 * and must not be copied to a board that
+				 * lacks it.
+				 *
+				 * A plain TRS plug shorts the mic node to
+				 * ground through its sleeve, which is what
+				 * makes headphones-without-mic a distinct
+				 * state rather than an absent one.
+				 */
+				ti,headset-detect;
+
+				/*
+				 * INT1 comes out of MISO/MFP4, wired to GPIO
+				 * 12.
+				 *
+				 * Rising edge.  INT1 idles LOW and pulses
+				 * HIGH for about 2ms (datasheet register 48,
+				 * D(0)), so the line resting at 0 is its idle
+				 * state and not an assertion.  A level type
+				 * here would fire continuously with nothing
+				 * plugged in.
+				 *
+				 * The driver leaves D(0) set, which repeats
+				 * the pulse until the sticky flag registers
+				 * are read, so a single missed edge recovers
+				 * on the next pulse rather than being lost.
+				 */
+				interrupt-parent = <&gpio>;
+				interrupts = <12 IRQ_TYPE_EDGE_RISING>;
 
 				status = "okay";
 			};
