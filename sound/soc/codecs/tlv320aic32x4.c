@@ -1380,6 +1380,7 @@ int aic32x4_probe(struct device *dev, struct regmap *regmap)
 	if (aic32x4 == NULL)
 		return -ENOMEM;
 
+	aic32x4->regmap = regmap;
 	aic32x4->dev = dev;
 	aic32x4->type = (uintptr_t)dev_get_drvdata(dev);
 
