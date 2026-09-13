@@ -49,6 +49,10 @@ int aic32x4_register_clocks(struct device *dev, const char *mclk_name);
 #define AIC32X4_IFACE4		AIC32X4_REG(0, 31)
 #define AIC32X4_IFACE5		AIC32X4_REG(0, 32)
 #define AIC32X4_IFACE6		AIC32X4_REG(0, 33)
+#define AIC32X4_STICKYFLAG0	AIC32X4_REG(0, 42)
+#define AIC32X4_STICKYFLAG1	AIC32X4_REG(0, 44)
+#define AIC32X4_STICKYFLAG2	AIC32X4_REG(0, 45)
+#define AIC32X4_INT1CTL		AIC32X4_REG(0, 48)
 #define AIC32X4_GPIOCTL		AIC32X4_REG(0, 52)
 #define AIC32X4_DOUTCTL		AIC32X4_REG(0, 53)
 #define AIC32X4_DINCTL		AIC32X4_REG(0, 54)
@@ -60,6 +64,7 @@ int aic32x4_register_clocks(struct device *dev, const char *mclk_name);
 #define AIC32X4_DACMUTE		AIC32X4_REG(0, 64)
 #define AIC32X4_LDACVOL		AIC32X4_REG(0, 65)
 #define AIC32X4_RDACVOL		AIC32X4_REG(0, 66)
+#define AIC32X4_HSDETECT	AIC32X4_REG(0, 67)
 #define AIC32X4_ADCSETUP	AIC32X4_REG(0, 81)
 #define	AIC32X4_ADCFGA		AIC32X4_REG(0, 82)
 #define AIC32X4_LADCVOL		AIC32X4_REG(0, 83)
@@ -207,6 +212,41 @@ int aic32x4_register_clocks(struct device *dev, const char *mclk_name);
 #define AIC32X4_MICBIAS_LDOIN		BIT(3)
 #define AIC32X4_MICBIAS_2075V		0x60
 #define AIC32x4_MICBIAS_MASK            GENMASK(6, 3)
+
+/*
+ * AIC32X4_STICKYFLAG1
+ *
+ * Read-to-clear.  The headset insert/removal event lands here rather than in
+ * the second sticky register, which stays zero across a jack cycle.
+ */
+#define AIC32X4_STICKY_BUTTON		BIT(5)
+#define AIC32X4_STICKY_HSPLUG		BIT(4)
+
+/* AIC32X4_INT1CTL */
+#define AIC32X4_INT1_HSPLUG		BIT(7)
+#define AIC32X4_INT1_BUTTON		BIT(6)
+/*
+ * Clear for a single pulse, set to keep re-asserting until the sticky flags
+ * are read.  The handler reads them, so the latched form is what makes a
+ * missed edge recoverable rather than permanent.
+ */
+#define AIC32X4_INT1_MULTI_PULSE	BIT(0)
+
+/* AIC32X4_HSDETECT */
+#define AIC32X4_HSDETECT_ENABLE		BIT(7)
+#define AIC32X4_HSDETECT_TYPE_MASK	GENMASK(6, 5)
+#define AIC32X4_HSDETECT_TYPE_SHIFT	(5)
+#define AIC32X4_HSDETECT_TYPE_NONE	(0x00)
+#define AIC32X4_HSDETECT_TYPE_HP	(0x01)
+#define AIC32X4_HSDETECT_TYPE_HS	(0x03)
+/* Debounce for the jack itself, D(4:2): 101 is 512ms. */
+#define AIC32X4_HSDETECT_DEBOUNCE_512MS	(0x05 << 2)
+
+/* SCLK/MFP3 function, AIC32X4_SCLKCTL D(2:1) */
+#define AIC32X4_SCLKCTL_HSDETECT	(0x00)
+
+/* MISO/MFP4 function, AIC32X4_MISOCTL D(4:1) */
+#define AIC32X4_MISOCTL_INT1		(0x04 << 1)
 
 /* AIC32X4_LMICPGANIN */
 #define AIC32X4_LMICPGANIN_IN2R_10K	0x10
