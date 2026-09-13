@@ -1021,19 +1021,6 @@ static void aic32x4_setup_gpios(struct snd_soc_component *component)
 static irqreturn_t aic32x4_irq(int irq, void *data);
 static int aic32x4_hsdetect_report(struct aic32x4_priv *aic32x4);
 
-/*
- * The jack is created here rather than by the card, because a card driver
- * that creates one is not universal: audio-graph-card2, which this codec is
- * used with, creates none at all.  Binding the pin to the "Headphone Jack"
- * widget lets DAPM follow insertion without the machine driver's help.
- */
-static struct snd_soc_jack_pin aic32x4_jack_pins[] = {
-	{
-		.pin	= "Headphone Jack",
-		.mask	= SND_JACK_HEADPHONE | SND_JACK_HEADSET,
-	},
-};
-
 static int aic32x4_hsdetect_setup(struct snd_soc_component *component)
 {
 	struct snd_soc_dapm_context *dapm = snd_soc_component_get_dapm(component);
@@ -1064,10 +1051,23 @@ static int aic32x4_hsdetect_setup(struct snd_soc_component *component)
 				AIC32X4_HSDETECT_ENABLE |
 				AIC32X4_HSDETECT_DEBOUNCE_512MS);
 
-	ret = snd_soc_card_jack_new_pins(component->card, "Headphone Jack",
-					 SND_JACK_HEADPHONE | SND_JACK_HEADSET,
-					 &aic32x4->jack, aic32x4_jack_pins,
-					 ARRAY_SIZE(aic32x4_jack_pins));
+	/*
+	 * The jack is created here rather than by the card, because a card
+	 * driver that creates one is not universal: audio-graph-card2, which
+	 * this codec is used with, creates none at all.
+	 *
+	 * Created without pins, so the jack reports state without DAPM gating
+	 * the output path on it.  Binding a pin to the "Headphone Jack" widget
+	 * is the usual thing to do, and is right where the detected jack is
+	 * the only headphone output -- but the detect pin sees one connector,
+	 * and a board can hang a second one off the same HPL/HPR.  DAPM then
+	 * powers the whole path down whenever the connector it can see is
+	 * empty, and the outputs it cannot see go silent with every mixer
+	 * control still reading on.
+	 */
+	ret = snd_soc_card_jack_new(component->card, "Headphone Jack",
+				    SND_JACK_HEADPHONE | SND_JACK_HEADSET,
+				    &aic32x4->jack);
 	if (ret) {
 		dev_err(aic32x4->dev, "Failed to create jack: %d\n", ret);
 		return ret;
