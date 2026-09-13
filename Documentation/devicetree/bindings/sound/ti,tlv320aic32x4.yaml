@@ -46,6 +46,23 @@ properties:
   reset-gpios:
     maxItems: 1
 
+  interrupts:
+    maxItems: 1
+    description: |
+      Interrupt from the codec, driven out of one of the multifunction pins
+      configured as INT1. Optional; without it headset detection, when
+      enabled, has no event source.
+
+  ti,headset-detect:
+    type: boolean
+    description: |
+      Enable headset detection. The codec senses a DC level on SCLK/MFP3
+      rather than a mechanical contact, and MICBIAS must drive that node
+      through a series resistor, so this describes how the jack is wired on
+      a particular board and is not a property of the part. Occupies
+      SCLK/MFP3, so it cannot be combined with SPI control or with an
+      aic32x4-gpio-func entry for that pin.
+
   '#sound-dai-cells':
     const: 0
 
