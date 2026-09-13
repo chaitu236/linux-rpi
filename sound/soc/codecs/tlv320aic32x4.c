@@ -13,6 +13,7 @@
 #include <linux/moduleparam.h>
 #include <linux/init.h>
 #include <linux/delay.h>
+#include <linux/interrupt.h>
 #include <linux/pm.h>
 #include <linux/gpio.h>
 #include <linux/of_gpio.h>
@@ -25,6 +26,7 @@
 
 #include <sound/tlv320aic32x4.h>
 #include <sound/core.h>
+#include <sound/jack.h>
 #include <sound/pcm.h>
 #include <sound/pcm_params.h>
 #include <sound/soc.h>
@@ -53,7 +55,15 @@ struct aic32x4_priv {
 
 	unsigned int fmt;
 
+	/*
+	 * Headset detection.  The codec senses a DC level on SCLK/MFP3, which
+	 * MICBIAS drives through a series resistor on the board, so this is
+	 * only meaningful where that pin is wired to the mic node -- hence the
+	 * ti,headset-detect gate rather than always-on.
+	 */
+	bool hsdetect;
 	int irq;
+	struct snd_soc_jack jack;
 };
 
 static int aic32x4_reset_adc(struct snd_soc_dapm_widget *w,
@@ -1008,6 +1018,101 @@ static void aic32x4_setup_gpios(struct snd_soc_component *component)
 	}
 }
 
+static irqreturn_t aic32x4_irq(int irq, void *data);
+static int aic32x4_hsdetect_report(struct aic32x4_priv *aic32x4);
+
+/*
+ * The jack is created here rather than by the card, because a card driver
+ * that creates one is not universal: audio-graph-card2, which this codec is
+ * used with, creates none at all.  Binding the pin to the "Headphone Jack"
+ * widget lets DAPM follow insertion without the machine driver's help.
+ */
+static struct snd_soc_jack_pin aic32x4_jack_pins[] = {
+	{
+		.pin	= "Headphone Jack",
+		.mask	= SND_JACK_HEADPHONE | SND_JACK_HEADSET,
+	},
+};
+
+static int aic32x4_hsdetect_setup(struct snd_soc_component *component)
+{
+	struct snd_soc_dapm_context *dapm = snd_soc_component_get_dapm(component);
+	struct aic32x4_priv *aic32x4 = snd_soc_component_get_drvdata(component);
+	int ret;
+
+	/*
+	 * MICBIAS drives the node the detect comparator senses, so it has to
+	 * be on for detection to mean anything -- and it has to stay on with
+	 * no audio path up, which is the normal state for a jack nobody is
+	 * listening through.
+	 *
+	 * Forced on through DAPM rather than written directly.  Nothing routes
+	 * to the "Mic Bias" supply, and DAPM powers down what nothing
+	 * references: its PRE_PMD handler clears the whole MICBIAS mask during
+	 * the initial sync, undoing a direct write moments after probe.  The
+	 * detect block then free-runs on a floating input, which on this board
+	 * measured as a thousand interrupts a second.
+	 */
+	snd_soc_dapm_force_enable_pin(dapm, "Mic Bias");
+	snd_soc_dapm_sync(dapm);
+
+	/* SCLK/MFP3 senses the mic node.  Free because SPI_SELECT is tied low. */
+	snd_soc_component_update_bits(component, AIC32X4_SCLKCTL,
+				      GENMASK(2, 1), AIC32X4_SCLKCTL_HSDETECT);
+
+	snd_soc_component_write(component, AIC32X4_HSDETECT,
+				AIC32X4_HSDETECT_ENABLE |
+				AIC32X4_HSDETECT_DEBOUNCE_512MS);
+
+	ret = snd_soc_card_jack_new_pins(component->card, "Headphone Jack",
+					 SND_JACK_HEADPHONE | SND_JACK_HEADSET,
+					 &aic32x4->jack, aic32x4_jack_pins,
+					 ARRAY_SIZE(aic32x4_jack_pins));
+	if (ret) {
+		dev_err(aic32x4->dev, "Failed to create jack: %d\n", ret);
+		return ret;
+	}
+
+	if (aic32x4->irq > 0) {
+		/* MISO/MFP4 carries INT1. */
+		snd_soc_component_update_bits(component, AIC32X4_MISOCTL,
+					      GENMASK(4, 1),
+					      AIC32X4_MISOCTL_INT1);
+
+		/*
+		 * Latched rather than a single pulse: the handler clears the
+		 * sticky flags, so a pulse missed while the line was already
+		 * asserted would otherwise be lost for good.
+		 */
+		snd_soc_component_write(component, AIC32X4_INT1CTL,
+					AIC32X4_INT1_HSPLUG |
+					AIC32X4_INT1_MULTI_PULSE);
+
+		ret = devm_request_threaded_irq(aic32x4->dev, aic32x4->irq,
+						NULL, aic32x4_irq,
+						IRQF_ONESHOT,
+						"tlv320aic32x4", aic32x4);
+		if (ret) {
+			dev_err(aic32x4->dev, "Failed to request IRQ %d: %d\n",
+				aic32x4->irq, ret);
+			return ret;
+		}
+	} else {
+		dev_warn(aic32x4->dev,
+			 "Headset detect enabled with no interrupt; state must be polled\n");
+	}
+
+	dev_info(aic32x4->dev, "Headset detect enabled%s\n",
+		 aic32x4->irq > 0 ? "" : " (no interrupt)");
+
+	/* Report the state the jack is already in at boot. */
+	ret = aic32x4_hsdetect_report(aic32x4);
+	if (ret >= 0)
+		snd_soc_jack_report(&aic32x4->jack, ret, SND_JACK_HEADSET);
+
+	return 0;
+}
+
 static int aic32x4_component_probe(struct snd_soc_component *component)
 {
 	struct aic32x4_priv *aic32x4 = snd_soc_component_get_drvdata(component);
@@ -1052,6 +1157,7 @@ static int aic32x4_component_probe(struct snd_soc_component *component)
 		snd_soc_component_write(component, AIC32X4_MICBIAS,
 				AIC32X4_MICBIAS_LDOIN | AIC32X4_MICBIAS_2075V);
 	}
+
 	if (aic32x4->power_cfg & AIC32X4_PWR_AVDD_DVDD_WEAK_DISABLE)
 		snd_soc_component_write(component, AIC32X4_PWRCFG, AIC32X4_AVDDWEAKDISABLE);
 
@@ -1098,11 +1204,109 @@ static int aic32x4_component_probe(struct snd_soc_component *component)
 				AIC32X4_REFPOWERUP_40MS);
 	msleep(40);
 
+	/*
+	 * After the analog block, not before: MICBIAS drives the node the
+	 * detect comparator senses, and it is the internal LDO enabled above
+	 * that supplies AVDD on a board with no separate analog supply.
+	 */
+	if (aic32x4->hsdetect) {
+		ret = aic32x4_hsdetect_setup(component);
+		if (ret)
+			return ret;
+	}
+
+	return 0;
+}
+
+/*
+ * The detect block reports three states on AIC32X4_HSDETECT D(6:5): nothing,
+ * a stereo headset without a mic, and one with.  The middle case exists
+ * because a three-conductor plug shorts the mic node to ground through its
+ * sleeve, which reads as a level distinct from both an open jack and a mic.
+ */
+static int aic32x4_hsdetect_report(struct aic32x4_priv *aic32x4)
+{
+	unsigned int val;
+	int ret;
+
+	ret = regmap_read(aic32x4->regmap, AIC32X4_HSDETECT, &val);
+	if (ret)
+		return ret;
+
+	switch ((val & AIC32X4_HSDETECT_TYPE_MASK) >>
+			AIC32X4_HSDETECT_TYPE_SHIFT) {
+	case AIC32X4_HSDETECT_TYPE_HP:
+		return SND_JACK_HEADPHONE;
+	case AIC32X4_HSDETECT_TYPE_HS:
+		return SND_JACK_HEADSET;
+	default:
+		return 0;
+	}
+}
+
+static irqreturn_t aic32x4_irq(int irq, void *data)
+{
+	struct aic32x4_priv *aic32x4 = data;
+	unsigned int flags, discard;
+	int status;
+	int ret;
+
+	/*
+	 * Read the sticky flags first and unconditionally.  They are
+	 * read-to-clear, and INT1 is configured to repeat its pulse until
+	 * they are, so this is what stops the pulse train as well as what
+	 * says why it fired.
+	 *
+	 * All three must be read: the datasheet stops the train only once
+	 * registers 42, 44 and 45 have been read, so clearing just the one
+	 * carrying the headset flag would leave it running whenever an
+	 * overflow or AGC noise flag happened to be set.
+	 */
+	ret = regmap_read(aic32x4->regmap, AIC32X4_STICKYFLAG1, &flags);
+	if (ret) {
+		dev_err(aic32x4->dev, "Failed to read sticky flags: %d\n", ret);
+		return IRQ_NONE;
+	}
+
+	regmap_read(aic32x4->regmap, AIC32X4_STICKYFLAG0, &discard);
+	regmap_read(aic32x4->regmap, AIC32X4_STICKYFLAG2, &discard);
+
+	if (!(flags & AIC32X4_STICKY_HSPLUG))
+		return IRQ_NONE;
+
+	status = aic32x4_hsdetect_report(aic32x4);
+	if (status < 0) {
+		dev_err(aic32x4->dev, "Failed to read headset type: %d\n",
+			status);
+		return IRQ_HANDLED;
+	}
+
+	dev_dbg(aic32x4->dev, "Headset detect: flags 0x%02x, status 0x%02x\n",
+		flags, status);
+
+	snd_soc_jack_report(&aic32x4->jack, status, SND_JACK_HEADSET);
+
+	return IRQ_HANDLED;
+}
+
+static int aic32x4_set_jack(struct snd_soc_component *component,
+			    struct snd_soc_jack *jack, void *data)
+{
+	struct aic32x4_priv *aic32x4 = snd_soc_component_get_drvdata(component);
+
+	if (!aic32x4->hsdetect)
+		return -EOPNOTSUPP;
+
+	snd_soc_component_update_bits(component, AIC32X4_HSDETECT,
+				      AIC32X4_HSDETECT_ENABLE,
+				      jack ? AIC32X4_HSDETECT_ENABLE : 0);
+
 	return 0;
 }
 
 static const struct snd_soc_component_driver soc_component_dev_aic32x4 = {
 	.probe			= aic32x4_component_probe,
+	.set_jack		= aic32x4_set_jack,
 	.set_bias_level		= aic32x4_set_bias_level,
 	.controls		= aic32x4_snd_controls,
 	.num_controls		= ARRAY_SIZE(aic32x4_snd_controls),
@@ -1263,6 +1467,7 @@ static int aic32x4_parse_dt(struct aic32x4_priv *aic32x4,
 	aic32x4->swapdacs = false;
 	aic32x4->micpga_routing = 0;
 	aic32x4->rstn_gpio = of_get_named_gpio(np, "reset-gpios", 0);
+	aic32x4->hsdetect = of_property_read_bool(np, "ti,headset-detect");
 
 	if (of_property_read_u32_array(np, "aic32x4-gpio-func",
 				aic32x4_setup->gpio_func, 5) >= 0)
