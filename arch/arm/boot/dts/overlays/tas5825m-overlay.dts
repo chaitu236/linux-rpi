@@ -209,24 +209,35 @@
 			links = <&isokbd_i2s_port>;
 
 			/*
-			 * Pin both outputs as DAPM endpoints that are always
-			 * connected. Without this nothing downstream of either
-			 * DAC is ever powered: the codec stays at bias level
-			 * Off with its PLL, NDAC and MDAC down even while the
-			 * PCM says it is running.
+			 * Pin all three outputs as DAPM endpoints that are
+			 * always connected. Without this nothing downstream of
+			 * either DAC is ever powered: the codec stays at bias
+			 * level Off with its PLL, NDAC and MDAC down even while
+			 * the PCM says it is running.
 			 *
-			 * Both are pinned, not just the selected one, because
+			 * All are pinned, not just the selected one, because
 			 * the whole point of the shared link is that both chips
 			 * stay live and selection is a mixer write. The
 			 * DAC-to-output-mixer switches are still runtime mixer
 			 * controls and default to off; those are set from the
 			 * saved ALSA state rather than here.
+			 *
+			 * The line out is a third endpoint on the aic3254, not
+			 * a third codec: LOL/LOR hang off the same Left and
+			 * Right DACs that already feed HPL/HPR, through their
+			 * own output mixers and driver stage. That is why it is
+			 * not exclusive with the headphones -- both output
+			 * mixers can route the same DAC at once -- and why it
+			 * needs no link, port or endpoint of its own.
 			 */
 			widgets = "Headphone", "Headphone Jack",
-				  "Speaker",   "Speakers";
+				  "Speaker",   "Speakers",
+				  "Line",      "Line Out";
 			routing = "Headphone Jack", "HPL",
 				  "Headphone Jack", "HPR",
-				  "Speakers",       "OUT";
+				  "Speakers",       "OUT",
+				  "Line Out",       "LOL",
+				  "Line Out",       "LOR";
 
 			/*
 			 * Two things here are load-bearing and neither is
