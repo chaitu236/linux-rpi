@@ -1231,6 +1231,15 @@ Params: dr_mode                 Dual role mode: "host", "peripheral" or "otg"
         g-np-tx-fifo-size       Size of non-periodic tx fifo size in gadget
                                 mode
 
+        usb_role_switch         Register a USB role switch, so the role can be
+                                changed at runtime through
+                                /sys/class/usb_role/*/role. Needs dr_mode=otg.
+
+        role_switch_default_mode
+                                Role to start in when usb_role_switch is set:
+                                "host" or "peripheral". Without it the
+                                controller starts with no session in either.
+
 
 [ The ds1307-rtc overlay has been deleted. See i2c-rtc. ]
 

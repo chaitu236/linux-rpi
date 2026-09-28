@@ -20,6 +20,8 @@
 
 	__overrides__ {
 		dr_mode = <&dwc2_usb>, "dr_mode";
+		usb_role_switch = <&dwc2_usb>, "usb-role-switch?";
+		role_switch_default_mode = <&dwc2_usb>, "role-switch-default-mode";
 		g-np-tx-fifo-size = <&dwc2_usb>,"g-np-tx-fifo-size:0";
 		g-rx-fifo-size = <&dwc2_usb>,"g-rx-fifo-size:0";
 	};
