@@ -657,8 +657,16 @@ static int f_midi_do_transmit(struct f_midi *midi, struct usb_ep *ep)
 
 	err = usb_ep_queue(ep, req, GFP_ATOMIC);
 	if (err < 0) {
-		ERROR(midi, "%s failed to queue req: %d\n",
-		      midi->in_ep->name, err);
+		/*
+		 * -EAGAIN is the UDC refusing requests while the bus is
+		 * suspended: the host is asleep, or the cable was pulled on a
+		 * port that cannot sense VBUS. That is not a fault, and the
+		 * data is dropped either way, so only log real failures
+		 * rather than a line for every event sent while suspended.
+		 */
+		if (err != -EAGAIN)
+			ERROR(midi, "%s failed to queue req: %d\n",
+			      midi->in_ep->name, err);
 		req->length = 0; /* Re-use request next time. */
 	} else {
 		/* Upon success, put request at the back of the queue. */
