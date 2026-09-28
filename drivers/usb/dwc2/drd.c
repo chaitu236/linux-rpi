@@ -156,7 +156,15 @@ static int dwc2_drd_role_sw_set(struct usb_role_switch *sw, enum usb_role role)
 
 	spin_unlock_irqrestore(&hsotg->lock, flags);
 
-	if (!already && hsotg->dr_mode == USB_DR_MODE_OTG)
+	/*
+	 * already only says the session-valid bit was set before we wrote the
+	 * override. Where the PHY senses sessions itself, as on BCM2711, both
+	 * A and B read valid regardless, so already is set in either direction
+	 * and the mode would never change. Force it whenever the core is not
+	 * already in the mode the role asks for.
+	 */
+	if (hsotg->dr_mode == USB_DR_MODE_OTG &&
+	    (!already || dwc2_is_host_mode(hsotg) != (role == USB_ROLE_HOST)))
 		/* This will raise a Connector ID Status Change Interrupt */
 		dwc2_force_mode(hsotg, role == USB_ROLE_HOST);
 
