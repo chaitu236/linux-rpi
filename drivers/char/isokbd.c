@@ -11,13 +11,24 @@
 #include <linux/slab.h>
 #include <linux/uaccess.h>
 
-#include <linux/gpio.h>
+#include <linux/gpio/consumer.h>
+#include <linux/gpio/machine.h>
 #include <linux/interrupt.h>
 #include <linux/mutex.h>
 #include <linux/wait.h>
 
-/* FIXME: Don't hardcode global gpio no. Use some API to figure it out */
-#define FLOW_CONTROL_GPIO 537
+/*
+ * Flow control from the pico, on header pin GPIO25. Looked up by line name
+ * rather than number: the CM4 and CM5 device trees both name it "GPIO25",
+ * although it is on the SoC's controller on CM4 and on RP1 on CM5.
+ */
+static struct gpiod_lookup_table isokbd_gpio_table = {
+	.dev_id = KBUILD_MODNAME,
+	.table = {
+		GPIO_LOOKUP("GPIO25", U16_MAX, "flow-control", GPIO_ACTIVE_HIGH),
+		{ }
+	},
+};
 
 static int keypress_spi_buffer_t_size;
 module_param(keypress_spi_buffer_t_size, int, 0400);
@@ -33,6 +44,8 @@ static int bufsize = 0;
 static int head, tail;
 struct mutex buf_lock;
 wait_queue_head_t wait_queue;
+static struct gpio_desc *flow_control;
+static int irq;
 
 static int isokbd_open(struct inode *inode, struct file *file)
 {
@@ -146,7 +159,6 @@ out:
 
 static int __init isokbd_init(void)
 {
-	int irq;
 	int ret;
 
 	pr_info("%s: keypress_spi_buffer_t_size=%d\n", __func__, keypress_spi_buffer_t_size);
@@ -159,8 +171,28 @@ static int __init isokbd_init(void)
 	init_waitqueue_head(&wait_queue);
 
 	adcbuf = kmalloc(keypress_spi_buffer_t_size * ADCBUF_SIZE, GFP_KERNEL);
-	irq = gpio_to_irq(FLOW_CONTROL_GPIO);
+
+	/* Registered first so the gpio lookup below has a device to match */
+	ret = misc_register(&isokbd_miscdev);
+	if (ret) {
+		pr_err("Error %d in misc_register\n", ret);
+		goto err_misc_register;
+	}
+
+	gpiod_add_lookup_table(&isokbd_gpio_table);
+	flow_control = gpiod_get(isokbd_miscdev.this_device, "flow-control", GPIOD_IN);
+	gpiod_remove_lookup_table(&isokbd_gpio_table);
+	if (IS_ERR(flow_control)) {
+		pr_err("Error %ld requesting flow control gpio\n", PTR_ERR(flow_control));
+		goto err_gpio;
+	}
+
+	irq = gpiod_to_irq(flow_control);
 	pr_info("irq %d\n", irq);
+	if (irq < 0) {
+		pr_err("Error %d in gpiod_to_irq\n", irq);
+		goto err_request_irq;
+	}
 
 	ret = request_threaded_irq(irq, NULL, isokbd_isr, IRQF_TRIGGER_RISING | IRQF_ONESHOT, "isokbd pico", NULL);
 
@@ -169,9 +201,13 @@ static int __init isokbd_init(void)
 		goto err_request_irq;
 	}
 
-	return misc_register(&isokbd_miscdev);
+	return 0;
 
 err_request_irq:
+	gpiod_put(flow_control);
+err_gpio:
+	misc_deregister(&isokbd_miscdev);
+err_misc_register:
 	kfree(adcbuf);
 err_buffer_zero:
 	return -1;
@@ -181,10 +217,10 @@ static void __exit isokbd_exit(void)
 {
 	pr_info("%s: %d\n", __func__, __LINE__);
 
-	free_irq(gpio_to_irq(FLOW_CONTROL_GPIO), NULL);
-	kfree(adcbuf);
-
+	free_irq(irq, NULL);
+	gpiod_put(flow_control);
 	misc_deregister(&isokbd_miscdev);
+	kfree(adcbuf);
 }
 
 module_init(isokbd_init);
